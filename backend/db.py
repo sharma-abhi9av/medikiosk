@@ -63,8 +63,8 @@ def now():
 
 def get_conversation_history(session_id):
     """Returns every message for this patient, in order, as a list of dicts.
-    This is exactly what the AI Conversationalist's conversation_history input looks like,
-    and what the Summary function reads to rebuild the conversation."""
+    This is exactly what ai_engine.get_next_question()'s conversation_history input looks like,
+    and what summary_engine.generate_summary() reads to rebuild the conversation."""
     conn = get_db_connection()
     rows = conn.execute(
         "SELECT role, message, stage FROM conversation_messages WHERE session_id = ? ORDER BY id",

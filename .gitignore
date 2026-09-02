@@ -1,0 +1,8 @@
+venv/*
+venv/
+__pycache__/
+*.pyc
+medikiosk.db
+uploads/
+.env
+consent_audit.log
