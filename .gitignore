@@ -6,3 +6,4 @@ medikiosk.db
 uploads/
 .env
 consent_audit.log
+.DS_Store
