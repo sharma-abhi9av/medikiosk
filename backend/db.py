@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from datetime import datetime, timezone
 
 DB_PATH = "medikiosk.db"
@@ -83,3 +84,71 @@ def save_message(session_id, role, message, stage):
     )
     conn.commit()
     conn.close()
+
+
+# ---- New helpers, moved in from main.py so ALL raw SQL lives only here ----
+
+def save_new_session(session_id, patient_name, language, abha_id, started_at):
+    """Called by POST /api/session/start — inserts one new patient visit row."""
+    conn = get_db_connection()
+    conn.execute(
+        "INSERT INTO sessions (id, patient_name, language, abha_id, created_at) VALUES (?, ?, ?, ?, ?)",
+        (session_id, patient_name, language, abha_id, started_at),
+    )
+    conn.commit()
+    conn.close()
+
+
+def log_session_consent(session_id, consent_given, logged_at):
+    """Called by POST /api/consent — records whether/when the patient consented."""
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE sessions SET consent_given = ?, consent_timestamp = ? WHERE id = ?",
+        (1 if consent_given else 0, logged_at, session_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_session_status(session_id, status):
+    """Called by POST /api/converse once is_complete is True — marks the visit's current stage."""
+    conn = get_db_connection()
+    conn.execute("UPDATE sessions SET status = ? WHERE id = ?", (status, session_id))
+    conn.commit()
+    conn.close()
+
+
+def save_document(document_id, session_id, filename, raw_text, structured_dict, uploaded_at):
+    """Called by POST /api/upload-document — saves what OCR extracted from one uploaded photo."""
+    conn = get_db_connection()
+    conn.execute(
+        "INSERT INTO documents (id, session_id, filename, extracted_text, structured_json, uploaded_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (document_id, session_id, filename, raw_text, json.dumps(structured_dict), uploaded_at),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_session_documents(session_id):
+    """Called by GET /api/summary/{id} — returns every uploaded document for this patient."""
+    conn = get_db_connection()
+    docs = conn.execute(
+        "SELECT id AS document_id, extracted_text, structured_json FROM documents WHERE session_id = ?",
+        (session_id,),
+    ).fetchall()
+    conn.close()
+    return [
+        {"document_id": d["document_id"], "extracted_text": d["extracted_text"], "structured": json.loads(d["structured_json"])}
+        for d in docs
+    ]
+
+
+def get_all_sessions():
+    """Called by GET /api/sessions — returns every patient visit, newest first (Doctor Dashboard list)."""
+    conn = get_db_connection()
+    rows = conn.execute(
+        "SELECT id AS session_id, patient_name, created_at AS started_at, status FROM sessions ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
