@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediKiosk • Doctor Dashboard</title>
+  <link rel="stylesheet" href="css/doctor.css" />
+</head>
+<body>
+
+  <!-- Dashboard Header -->
+  <header class="doctor-header">
+    <div class="doctor-brand">
+      <span class="brand-icon">🩺</span>
+      <h1>MediKiosk Doctor Dashboard</h1>
+    </div>
+    <div class="doctor-nav-links">
+      <a href="index.html" class="nav-link">Open Kiosk</a>
+    </div>
+  </header>
+
+  <!-- Workspace: Patient List on Left, Clinical Note on Right -->
+  <div class="doctor-workspace">
+
+    <!-- Left Column: Patient Sessions List (GET /api/sessions) -->
+    <aside class="sessions-sidebar">
+      <div class="sidebar-header">
+        <h2>Patient Sessions</h2>
+        <button type="button" id="refreshSessionsBtn" class="btn-refresh">Refresh</button>
+      </div>
+
+      <div id="sessionsList" class="sessions-list">
+        <div class="empty-state">Loading patient sessions...</div>
+      </div>
+    </aside>
+
+    <!-- Right Column: Clinical Note (GET /api/summary/{sessionId}) -->
+    <main class="summary-content">
+      <div id="clinicalNoteContainer">
+        <div class="empty-state">Select a patient session from the left to view the clinical note.</div>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="js/doctor.js"></script>
+</body>
+</html>

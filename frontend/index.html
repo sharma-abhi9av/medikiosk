@@ -1,3 +1,195 @@
-<html>
-    
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediKiosk</title>
+  <link rel="stylesheet" href="css/kiosk.css?v=3" />
+</head>
+<body>
+
+  <div class="kiosk-app">
+    <!-- Header: Logo on left, Language selection on right-most side -->
+    <header class="kiosk-header">
+      <div class="kiosk-logo">
+        <span class="logo-icon">🏥</span>
+        <span class="logo-text">MediKiosk</span>
+      </div>
+
+      <div class="header-right">
+        <!-- Language Select: Two buttons (English / हिंदी) on the right-most side -->
+        <div class="lang-select-group">
+          <button type="button" id="langBtnEn" class="lang-btn active">English</button>
+          <button type="button" id="langBtnHi" class="lang-btn">हिंदी</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="kiosk-main">
+
+      <!-- ================================================================
+           SCREEN 1: PATIENT IDENTIFY
+           Name text field (empty) and ABHA ID pre-filled with 14-XXXX-XXXX-XXXX
+           ================================================================ -->
+      <section id="screen-identify" class="kiosk-screen active">
+        <h2 id="titleIdentify" class="screen-title">Patient Identification</h2>
+        <p id="descIdentify" class="screen-desc">Please enter your details to begin your consultation intake.</p>
+
+        <div class="form-group">
+          <label for="patientNameInput" id="labelPatientName">Full Name</label>
+          <input
+            type="text"
+            id="patientNameInput"
+            class="kiosk-input"
+            placeholder="Enter your name"
+            autocomplete="off"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="abhaIdInput" id="labelAbhaId">ABHA ID</label>
+          <input
+            type="text"
+            id="abhaIdInput"
+            class="kiosk-input"
+            value=""
+            autocomplete="off"
+          />
+        </div>
+
+        <button type="button" id="identifyContinueBtn" class="btn-primary">
+          Continue
+        </button>
+      </section>
+
+      <!-- ================================================================
+           SCREEN 2: CONSENT
+           Block of consent text and a checkbox that enables Continue button
+           ================================================================ -->
+      <section id="screen-consent" class="kiosk-screen">
+        <h2 id="titleConsent" class="screen-title">Patient Consent</h2>
+        <p id="descConsent" class="screen-desc">Please review and provide your consent to continue.</p>
+
+        <div class="consent-box" id="consentTextContent">
+          <p>By proceeding, you consent to sharing your reported symptoms and past medical history with your attending physician.</p>
+          <p>Your data is processed securely for this consultation intake in compliance with DPDP and ABDM standards.</p>
+          <p>The AI assistant assists in organizing your medical history; the final diagnosis and prescription will be made directly by your doctor.</p>
+        </div>
+
+        <div class="consent-checkbox-row">
+          <input type="checkbox" id="consentCheckbox" class="kiosk-checkbox" autocomplete="off" />
+          <label for="consentCheckbox" id="consentCheckboxLabel">I agree to the collection and clinical processing of my health intake for this visit.</label>
+        </div>
+
+        <button type="button" id="consentContinueBtn" class="btn-primary" disabled>
+          Continue
+        </button>
+      </section>
+
+      <!-- ================================================================
+           SCREEN 3: CONVERSATION
+           Chat messages, Mic/Abort toggle button + Textbox + Send button
+           ================================================================ -->
+      <section id="screen-conversation" class="kiosk-screen">
+        <!-- Chat history messages -->
+        <div id="chatMessages" class="chat-messages">
+          <!-- Initial AI question will appear here, followed by patient answers -->
+        </div>
+
+        <!-- Input Bar: Mic/Abort button + text box + Send button -->
+        <div class="input-bar">
+          <button type="button" id="micButton" class="btn-mic" title="Tap to speak">
+            🎤
+          </button>
+          <input
+            type="text"
+            id="patientAnswerInput"
+            class="kiosk-input chat-input"
+            placeholder="Tap mic to speak, or type your answer here..."
+            autocomplete="off"
+          />
+          <button type="button" id="sendMessageBtn" class="btn-send">
+            Send
+          </button>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           SCREEN 4: DOCUMENT UPLOAD
+           Upload / camera button and Skip option
+           ================================================================ -->
+      <section id="screen-upload" class="kiosk-screen">
+        <h2 id="titleUpload" class="screen-title">Document Upload</h2>
+        <p id="descUpload" class="screen-desc">Upload a photo of your previous prescription or medical report (optional).</p>
+
+        <!-- Hidden file input with camera support -->
+        <input
+          type="file"
+          id="docFileInput"
+          accept="image/*,application/pdf"
+          capture="environment"
+          style="display: none;"
+        />
+
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon">📄</div>
+          <div id="uploadPromptText" class="upload-text">Tap to select photo or scan prescription</div>
+        </div>
+
+        <!-- Extracted text preview (visible only after upload) -->
+        <div id="ocrResultBox" class="ocr-result-box" style="display: none;">
+          <h3 id="ocrHeader">Extracted Text:</h3>
+          <pre id="extractedTextDisplay" class="extracted-text-display"></pre>
+          <p id="ocrConfirmPrompt">Is this correct?</p>
+          <button type="button" id="ocrConfirmBtn" class="btn-primary">
+            Confirm & Continue
+          </button>
+        </div>
+
+        <button type="button" id="skipUploadBtn" class="btn-secondary">
+          Skip
+        </button>
+      </section>
+
+      <!-- ================================================================
+           SCREEN 5: PATIENT REVIEW
+           Plain-language sentence from GET /api/summary/{sessionId} & Submit
+           ================================================================ -->
+      <section id="screen-review" class="kiosk-screen">
+        <h2 id="titleReview" class="screen-title">Review</h2>
+        <p id="descReview" class="screen-desc">Please review your recorded intake before submitting to your doctor.</p>
+
+        <div class="summary-card">
+          <div id="summarySentence" class="summary-sentence">
+            Loading summary...
+          </div>
+          <div id="summaryDetails" class="summary-details"></div>
+        </div>
+
+        <button type="button" id="submitReviewBtn" class="btn-primary">
+          Submit
+        </button>
+      </section>
+
+      <!-- ================================================================
+           SCREEN 5b: VISIT COMPLETED
+           ================================================================ -->
+      <section id="screen-completed" class="kiosk-screen">
+        <div class="completed-box">
+          <div class="completed-icon">✓</div>
+          <h2 id="titleCompleted" class="screen-title">Intake Submitted</h2>
+          <p id="descCompleted" class="screen-desc">Your clinical summary has been sent directly to the doctor's screen. Please wait to be called.</p>
+          <button type="button" id="startNewVisitBtn" class="btn-secondary" style="margin-top: 24px;">
+            Start New Patient Visit
+          </button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="js/app.js?v=3"></script>
+</body>
 </html>
