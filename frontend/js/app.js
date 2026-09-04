@@ -33,6 +33,7 @@ const UI_TEXT = {
     labelPatientName: "Full Name",
     placeholderPatientName: "Enter your name",
     labelAbhaId: "ABHA ID",
+    placeholderAbhaId: "Please enter your 14-digit ABHA ID",
     continueBtn: "Continue",
 
     titleConsent: "Patient Consent",
@@ -69,6 +70,7 @@ const UI_TEXT = {
     labelPatientName: "पूरा नाम",
     placeholderPatientName: "अपना नाम दर्ज करें",
     labelAbhaId: "आभा आईडी",
+    placeholderAbhaId: "कृपया अपनी 14 अंकों की आभा आईडी दर्ज करें",
     continueBtn: "आगे बढ़ें",
 
     titleConsent: "मरीज़ सहमति",
@@ -158,6 +160,9 @@ function setLanguage(lang) {
 
   const inputElem = document.getElementById("patientNameInput");
   if (inputElem) inputElem.placeholder = t.placeholderPatientName;
+
+  const abhaInput = document.getElementById("abhaIdInput");
+  if (abhaInput) abhaInput.placeholder = t.placeholderAbhaId;
 
   const answerInput = document.getElementById("patientAnswerInput");
   if (answerInput) answerInput.placeholder = t.inputPlaceholder;
@@ -266,11 +271,30 @@ if (SpeechRecognition) {
 // 1. Patient Identify (POST /api/session/start)
 // ----------------------------------------------------------------------------
 async function handlePatientIdentify() {
-  const patient_name = document.getElementById("patientNameInput").value.trim();
-  const abha_id = document.getElementById("abhaIdInput").value.trim();
+  const patientNameInput = document.getElementById("patientNameInput");
+  const abhaIdInput = document.getElementById("abhaIdInput");
+  const patient_name = patientNameInput ? patientNameInput.value.trim() : "";
+  const abha_id = abhaIdInput ? abhaIdInput.value.trim() : "";
 
   if (!patient_name) {
     alert(selectedLang === "hi" ? "कृपया अपना नाम दर्ज करें" : "Please enter your name");
+    if (patientNameInput) patientNameInput.focus();
+    return;
+  }
+
+  if (!abha_id) {
+    alert(selectedLang === "hi" ? "कृपया अपनी 14 अंकों की आभा आईडी दर्ज करें" : "Please enter your 14-digit ABHA ID");
+    if (abhaIdInput) abhaIdInput.focus();
+    return;
+  }
+
+  if (abha_id.length !== 14 || !/^\d{14}$/.test(abha_id)) {
+    alert(
+      selectedLang === "hi"
+        ? `आभा आईडी ठीक 14 अंकों की होनी चाहिए (आपने ${abha_id.length} अंक दर्ज किए हैं)`
+        : `ABHA ID must be exactly 14 digits (you entered ${abha_id.length} digits)`
+    );
+    if (abhaIdInput) abhaIdInput.focus();
     return;
   }
 
@@ -331,10 +355,21 @@ async function sendAnswerToBackend(theirAnswerText) {
 
   // Clear input field
   const inputElem = document.getElementById("patientAnswerInput");
+  const sendBtn = document.getElementById("sendMessageBtn");
+  const micBtn = document.getElementById("micButton");
+
   if (inputElem) inputElem.value = "";
 
   // Show patient bubble
   appendMessage("patient", text);
+
+  // Show Instagram-style typing indicator while awaiting AI response
+  showTypingIndicator();
+
+  // Temporarily disable input controls while waiting for AI
+  if (inputElem) inputElem.disabled = true;
+  if (sendBtn) sendBtn.disabled = true;
+  if (micBtn) micBtn.disabled = true;
 
   try {
     const response = await fetch(`${API_BASE}/converse`, {
@@ -347,6 +382,9 @@ async function sendAnswerToBackend(theirAnswerText) {
     const data = await response.json();
     // data = { ai_question, stage, is_complete }
 
+    // Remove typing indicator once AI response is received
+    removeTypingIndicator();
+
     if (data.ai_question) {
       appendMessage("ai", data.ai_question);
     }
@@ -355,19 +393,52 @@ async function sendAnswerToBackend(theirAnswerText) {
     // If false: stay on Screen 3 (conversation), wait for patient to speak/type again.
     // If true: chat is officially complete, disable input and proceed to upload.
     if (data.is_complete === true || data.is_complete === "true") {
-      const inputElem = document.getElementById("patientAnswerInput");
-      const sendBtn = document.getElementById("sendMessageBtn");
-      const micBtn = document.getElementById("micButton");
-      if (inputElem) inputElem.disabled = true;
-      if (sendBtn) sendBtn.disabled = true;
-      if (micBtn) micBtn.disabled = true;
-
       setTimeout(() => {
         showScreen("screen-upload");
       }, 1500);
+    } else {
+      // Re-enable controls for the next answer
+      if (inputElem) {
+        inputElem.disabled = false;
+        inputElem.focus();
+      }
+      if (sendBtn) sendBtn.disabled = false;
+      if (micBtn) micBtn.disabled = false;
     }
   } catch (err) {
+    removeTypingIndicator();
     appendMessage("ai", "Error reaching backend: " + err.message);
+    if (inputElem) inputElem.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (micBtn) micBtn.disabled = false;
+  }
+}
+
+function showTypingIndicator() {
+  const chatMessages = document.getElementById("chatMessages");
+  if (!chatMessages) return;
+
+  // Avoid creating multiple indicators
+  if (document.getElementById("aiTypingIndicator")) return;
+
+  const bubble = document.createElement("div");
+  bubble.id = "aiTypingIndicator";
+  bubble.className = "chat-bubble ai typing-indicator";
+  bubble.setAttribute("aria-label", "AI is typing...");
+  bubble.innerHTML = `
+    <span class="typing-dot"></span>
+    <span class="typing-dot"></span>
+    <span class="typing-dot"></span>
+  `;
+
+  chatMessages.appendChild(bubble);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const indicator = document.getElementById("aiTypingIndicator");
+  if (indicator) {
+    indicator.remove();
   }
 }
 
@@ -487,7 +558,7 @@ function resetVisit() {
   }
   sessionId = null;
   document.getElementById("patientNameInput").value = "";
-  document.getElementById("abhaIdInput").value = "14-XXXX-XXXX-XXXX";
+  document.getElementById("abhaIdInput").value = "";
   const answerInput = document.getElementById("patientAnswerInput");
   const sendBtn = document.getElementById("sendMessageBtn");
   const micBtn = document.getElementById("micButton");
@@ -501,9 +572,14 @@ function resetVisit() {
   document.getElementById("consentCheckbox").checked = false;
   document.getElementById("consentContinueBtn").disabled = true;
   document.getElementById("chatMessages").innerHTML = "";
+  removeTypingIndicator();
   document.getElementById("ocrResultBox").style.display = "none";
   const docInput = document.getElementById("docFileInput");
   if (docInput) docInput.value = "";
+  const sentenceElem = document.getElementById("summarySentence");
+  if (sentenceElem) sentenceElem.innerText = "Loading summary...";
+  const detailsElem = document.getElementById("summaryDetails");
+  if (detailsElem) detailsElem.innerHTML = "";
   showScreen("screen-identify");
 }
 
@@ -530,6 +606,30 @@ window.addEventListener("DOMContentLoaded", () => {
   const btnHi = document.getElementById("langBtnHi");
   if (btnEn) btnEn.onclick = () => setLanguage("en");
   if (btnHi) btnHi.onclick = () => setLanguage("hi");
+
+  // Screen 1: Identify inputs keyboard support
+  const patientNameInput = document.getElementById("patientNameInput");
+  if (patientNameInput) {
+    patientNameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const abhaInput = document.getElementById("abhaIdInput");
+        if (abhaInput) abhaInput.focus();
+      }
+    });
+  }
+
+  // Screen 1: Real-time numeric enforcement (digits only, max 14 digits)
+  const abhaIdInput = document.getElementById("abhaIdInput");
+  if (abhaIdInput) {
+    abhaIdInput.addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/\D/g, "").slice(0, 14);
+    });
+    abhaIdInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        handlePatientIdentify();
+      }
+    });
+  }
 
   // Screen 1: Identify Continue button
   const identifyBtn = document.getElementById("identifyContinueBtn");
