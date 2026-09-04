@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MediKiosk</title>
-  <link rel="stylesheet" href="css/kiosk.css?v=3" />
+  <link rel="stylesheet" href="css/kiosk.css?v=4" />
 </head>
 <body>
 
@@ -30,7 +30,7 @@
 
       <!-- ================================================================
            SCREEN 1: PATIENT IDENTIFY
-           Name text field (empty) and ABHA ID pre-filled with 14-XXXX-XXXX-XXXX
+           Name text field (empty) and ABHA ID (14 digits)
            ================================================================ -->
       <section id="screen-identify" class="kiosk-screen active">
         <h2 id="titleIdentify" class="screen-title">Patient Identification</h2>
@@ -54,8 +54,12 @@
             type="text"
             id="abhaIdInput"
             class="kiosk-input"
-            value=""
+            placeholder="Please enter your 14-digit ABHA ID"
             autocomplete="off"
+            maxlength="14"
+            inputmode="numeric"
+            pattern="\d{14}"
+            required
           />
         </div>
 
@@ -190,6 +194,6 @@
     </main>
   </div>
 
-  <script src="js/app.js?v=3"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>
