@@ -1,7 +1,9 @@
 import os
 import uuid
+import socket
 
 from fastapi import FastAPI, UploadFile, Form, File
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import (
@@ -33,9 +35,33 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-# ---------------------------------------------------------------------------
-# 1. POST /api/session/start
-# ---------------------------------------------------------------------------
+def get_local_ip():
+    """Automatically detects this machine's actual LAN IP address — no
+    hardcoding, works on whatever network the server is currently running on.
+
+    Trick: open a UDP socket and 'connect' to a public IP (8.8.8.8). This
+    doesn't actually send any data anywhere — it just asks the operating
+    system which local network interface/IP it WOULD use to reach that
+    address, which is exactly the IP other devices on the same network can
+    use to reach this machine. Falls back to localhost if there's no network
+    connection at all (e.g. testing fully offline).
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+
+@app.get("/api/server-info")
+def server_info():
+    return {"local_ip": get_local_ip(), "port": 8000}
+
+
 @app.post("/api/session/start")
 def start_session(data: dict):
     session_id = str(uuid.uuid4())
@@ -46,9 +72,6 @@ def start_session(data: dict):
     return {"session_id": session_id, "patient_name": data.get("patient_name"), "started_at": started_at}
 
 
-# ---------------------------------------------------------------------------
-# 2. POST /api/consent
-# ---------------------------------------------------------------------------
 @app.post("/api/consent")
 def consent(data: dict):
     session_id = data["session_id"]
@@ -57,16 +80,12 @@ def consent(data: dict):
 
     log_session_consent(session_id, consent_given, logged_at)
 
-    # Audit trail — plain text log, this is the security/compliance evidence for the pitch
     with open("consent_audit.log", "a") as f:
         f.write(f"[{logged_at}] session {session_id}: consent_given={consent_given}\n")
 
     return {"status": "ok", "logged_at": logged_at}
 
 
-# ---------------------------------------------------------------------------
-# 3. POST /api/converse  — needs ai_engine.get_next_question()
-# ---------------------------------------------------------------------------
 @app.post("/api/converse")
 def converse(data: dict):
     session_id = data["session_id"]
@@ -75,8 +94,6 @@ def converse(data: dict):
     history = get_conversation_history(session_id)
     current_stage = history[-1]["stage"] if history else "chief_complaint"
 
-    # Import here (not at the top of the file) so the rest of the server still
-    # runs even before ai_engine.py exists or has a bug — only this route fails.
     from ai_engine import get_next_question
     result = get_next_question(history, patient_answer, current_stage)
 
@@ -87,6 +104,105 @@ def converse(data: dict):
         update_session_status(session_id, "awaiting_documents")
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# EXTRA: GET /mobile-upload/{session_id} — a tiny page a patient's own phone
+# opens after scanning a QR code shown on the kiosk. It has one upload button
+# that calls the SAME POST /api/upload-document endpoint below, with the
+# session_id already baked into the page — no separate upload logic needed.
+# NOTE: only reachable if the phone is on the same WiFi network as this
+# server (see the note Mikey has for the team on this).
+# ---------------------------------------------------------------------------
+@app.get("/mobile-upload/{session_id}", response_class=HTMLResponse)
+def mobile_upload_page(session_id: str):
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Upload Prescription — MediKiosk</title>
+        <style>
+            body {{
+                font-family: sans-serif;
+                background: #0B4F4A;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                margin: 0;
+                padding: 20px;
+                text-align: center;
+                box-sizing: border-box;
+            }}
+            h2 {{ margin-bottom: 8px; }}
+            p {{ opacity: 0.85; margin-bottom: 24px; }}
+            input[type="file"] {{
+                margin-bottom: 20px;
+                color: white;
+            }}
+            button {{
+                background: #14A098;
+                color: white;
+                border: none;
+                padding: 14px 28px;
+                font-size: 16px;
+                border-radius: 8px;
+                cursor: pointer;
+            }}
+            button:disabled {{ opacity: 0.5; }}
+            #status {{ margin-top: 20px; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <h2>Upload Your Prescription</h2>
+        <p>Select a photo or PDF of your prescription from your phone.</p>
+        <input type="file" id="fileInput" accept="image/*,.pdf">
+        <button id="uploadBtn" onclick="uploadFile()">Upload</button>
+        <div id="status"></div>
+
+        <script>
+            const sessionId = "{session_id}";
+
+            async function uploadFile() {{
+                const fileInput = document.getElementById("fileInput");
+                const status = document.getElementById("status");
+                const btn = document.getElementById("uploadBtn");
+
+                if (!fileInput.files.length) {{
+                    status.textContent = "Please choose a file first.";
+                    return;
+                }}
+
+                btn.disabled = true;
+                status.textContent = "Uploading...";
+
+                const formData = new FormData();
+                formData.append("session_id", sessionId);
+                formData.append("file", fileInput.files[0]);
+
+                try {{
+                    const response = await fetch("/api/upload-document", {{
+                        method: "POST",
+                        body: formData,
+                    }});
+                    if (response.ok) {{
+                        status.textContent = "Uploaded! You can return to the kiosk now.";
+                    }} else {{
+                        status.textContent = "Upload failed — please try again.";
+                        btn.disabled = false;
+                    }}
+                }} catch (err) {{
+                    status.textContent = "Network error — check your connection and try again.";
+                    btn.disabled = false;
+                }}
+            }}
+        </script>
+    </body>
+    </html>
+    """
 
 
 # ---------------------------------------------------------------------------
