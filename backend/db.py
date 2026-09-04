@@ -152,3 +152,31 @@ def get_all_sessions():
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+def save_summary(session_id, chief_complaint, hpi, past_history, drug_allergy_history, generated_at):
+    """Called by summary_engine.generate_summary() — saves (or overwrites) the summary for one patient."""
+    conn = get_db_connection()
+    conn.execute(
+        "INSERT INTO summaries (session_id, chief_complaint, hpi, past_history, drug_allergy_history, generated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(session_id) DO UPDATE SET "
+        "chief_complaint=excluded.chief_complaint, hpi=excluded.hpi, past_history=excluded.past_history, "
+        "drug_allergy_history=excluded.drug_allergy_history, generated_at=excluded.generated_at",
+        (session_id, chief_complaint, hpi, past_history, drug_allergy_history, generated_at),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_summary(session_id):
+    """Reads back an already-saved summary, if one exists. Returns None if not generated yet.
+    Used by GET /api/summary/{id} so patient AND doctor both see the exact same saved summary,
+    instead of triggering a brand new AI generation on every single view."""
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT chief_complaint, hpi, past_history, drug_allergy_history FROM summaries WHERE session_id = ?",
+        (session_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None

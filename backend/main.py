@@ -15,6 +15,7 @@ from db import (
     save_document,
     get_session_documents,
     get_all_sessions,
+    get_summary,
 )
 
 app = FastAPI()
@@ -32,6 +33,9 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
+# ---------------------------------------------------------------------------
+# 1. POST /api/session/start
+# ---------------------------------------------------------------------------
 @app.post("/api/session/start")
 def start_session(data: dict):
     session_id = str(uuid.uuid4())
@@ -42,6 +46,9 @@ def start_session(data: dict):
     return {"session_id": session_id, "patient_name": data.get("patient_name"), "started_at": started_at}
 
 
+# ---------------------------------------------------------------------------
+# 2. POST /api/consent
+# ---------------------------------------------------------------------------
 @app.post("/api/consent")
 def consent(data: dict):
     session_id = data["session_id"]
@@ -57,6 +64,9 @@ def consent(data: dict):
     return {"status": "ok", "logged_at": logged_at}
 
 
+# ---------------------------------------------------------------------------
+# 3. POST /api/converse  — needs ai_engine.get_next_question()
+# ---------------------------------------------------------------------------
 @app.post("/api/converse")
 def converse(data: dict):
     session_id = data["session_id"]
@@ -79,6 +89,9 @@ def converse(data: dict):
     return result
 
 
+# ---------------------------------------------------------------------------
+# 4. POST /api/upload-document  — needs ocr_engine.extract_prescription_data()
+# ---------------------------------------------------------------------------
 @app.post("/api/upload-document")
 async def upload_document(session_id: str = Form(...), file: UploadFile = File(...)):
     document_id = str(uuid.uuid4())
@@ -96,16 +109,29 @@ async def upload_document(session_id: str = Form(...), file: UploadFile = File(.
     return {"document_id": document_id, "extracted_text": result["raw_text"], "structured": result["structured"]}
 
 
+# ---------------------------------------------------------------------------
+# 5. GET /api/summary/{session_id}  — needs summary_engine.generate_summary()
+# ---------------------------------------------------------------------------
 @app.get("/api/summary/{session_id}")
 def summary(session_id: str):
-    from summary_engine import generate_summary
-    result = generate_summary(session_id)
+    # Only generate a new summary if one doesn't already exist for this patient —
+    # this is what makes the patient's confirmed summary and the doctor's view
+    # the SAME summary, instead of a fresh AI generation every time this is viewed.
+    existing = get_summary(session_id)
+    if existing:
+        result = existing
+    else:
+        from summary_engine import generate_summary
+        result = generate_summary(session_id)
 
     documents = get_session_documents(session_id)
 
     return {"session_id": session_id, "documents": documents, "generated_at": now(), **result}
 
 
+# ---------------------------------------------------------------------------
+# 6. GET /api/sessions
+# ---------------------------------------------------------------------------
 @app.get("/api/sessions")
 def sessions():
     return get_all_sessions()
