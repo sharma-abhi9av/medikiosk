@@ -1,8 +1,9 @@
 import os
 import uuid
 import socket
+import subprocess
 
-from fastapi import FastAPI, UploadFile, Form, File
+from fastapi import FastAPI, UploadFile, Form, File, Response
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -35,30 +36,71 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def get_local_ip():
-    """Automatically detects this machine's actual LAN IP address — no
-    hardcoding, works on whatever network the server is currently running on.
+import platform
 
-    Trick: open a UDP socket and 'connect' to a public IP (8.8.8.8). This
-    doesn't actually send any data anywhere — it just asks the operating
-    system which local network interface/IP it WOULD use to reach that
-    address, which is exactly the IP other devices on the same network can
-    use to reach this machine. Falls back to localhost if there's no network
-    connection at all (e.g. testing fully offline).
+def get_local_ip():
+    """Detects this machine's actual Wi-Fi / LAN IP address using the OS kernel's
+    default gateway routing table.
+    
+    Virtual interfaces (like Docker bridges, VMware, WSL) do not have a default gateway
+    to the physical router. Only the physical network card (Wi-Fi or Ethernet) connected
+    to the router holds the default route.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    os_type = platform.system()
+
     try:
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
+        if os_type == "Darwin":
+            # macOS: Ask kernel which interface holds the default gateway route
+            out = subprocess.check_output(
+                ["route", "-n", "get", "default"],
+                timeout=1,
+                text=True,
+                stderr=subprocess.DEVNULL
+            )
+            for line in out.splitlines():
+                if line.strip().startswith("interface:"):
+                    iface = line.split(":", 1)[1].strip()
+                    return subprocess.check_output(
+                        ["ipconfig", "getifaddr", iface],
+                        timeout=1,
+                        text=True,
+                        stderr=subprocess.DEVNULL
+                    ).strip()
+
+        elif os_type == "Linux":
+            # Linux: 'ip route' directly states the src IP for the default gateway
+            out = subprocess.check_output(
+                ["ip", "-4", "route", "show", "default"],
+                timeout=1,
+                text=True,
+                stderr=subprocess.DEVNULL
+            )
+            parts = out.split()
+            if "src" in parts:
+                return parts[parts.index("src") + 1]
+
+        elif os_type == "Windows":
+            # Windows: Query the adapter that specifically has an IPv4DefaultGateway
+            cmd = 'powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway }).IPv4Address.IPAddress[0]"'
+            ip = subprocess.check_output(
+                cmd,
+                shell=True,
+                timeout=2,
+                text=True,
+                stderr=subprocess.DEVNULL
+            ).strip()
+            if ip:
+                return ip
+
     except Exception:
-        ip = "127.0.0.1"
-    finally:
-        s.close()
-    return ip
+        pass
+
+    return "127.0.0.1"
 
 
 @app.get("/api/server-info")
-def server_info():
+def server_info(response: Response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return {"local_ip": get_local_ip(), "port": 8000}
 
 
