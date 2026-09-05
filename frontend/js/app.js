@@ -48,12 +48,12 @@ const UI_TEXT = {
     inputPlaceholder: "Tap mic to speak, or type your answer here...",
     sendBtn: "Send",
 
-    titleUpload: "Document Upload",
-    descUpload: "Upload a photo of your previous prescription or medical report (optional).",
-    uploadPromptText: "Tap to select photo or scan prescription",
-    ocrHeader: "Extracted Text:",
-    ocrConfirmPrompt: "Is this correct?",
-    ocrConfirmBtn: "Confirm & Continue",
+    titleUpload: "Upload Prescription via Phone",
+    descUpload: "Scan the QR code below with your smartphone camera to upload a prescription from your phone (optional).",
+    qrStep1: "Open your smartphone camera or scanner",
+    qrStep2: "Point your camera at this QR code",
+    qrStep3: "Select & upload your prescription photo",
+    qrContinueBtn: "Continue to Review →",
     skipBtn: "Skip",
 
     titleReview: "Review",
@@ -85,12 +85,12 @@ const UI_TEXT = {
     inputPlaceholder: "बोलने के लिए माइक दबाएं या यहाँ टाइप करें...",
     sendBtn: "भेजें",
 
-    titleUpload: "दस्तावेज़ अपलोड",
-    descUpload: "पुराने पर्चे या रिपोर्ट की फोटो अपलोड करें (वैकल्पिक)।",
-    uploadPromptText: "फोटो चुनने या पर्चा स्कैन करने के लिए टैप करें",
-    ocrHeader: "पहचाना गया टेक्स्ट:",
-    ocrConfirmPrompt: "क्या यह सही है?",
-    ocrConfirmBtn: "पुष्टि करें और आगे बढ़ें",
+    titleUpload: "फोन से पर्चा अपलोड करें",
+    descUpload: "अपने फोन से पुराना पर्चा या मेडिकल रिपोर्ट अपलोड करने के लिए इस क्यूआर कोड को स्कैन करें (वैकल्पिक)।",
+    qrStep1: "अपने स्मार्टफोन का कैमरा या स्कैनर खोलें",
+    qrStep2: "कैमरे को इस क्यूआर कोड के सामने लाएं",
+    qrStep3: "अपने पुराने पर्चे की फोटो चुनकर अपलोड करें",
+    qrContinueBtn: "समीक्षा के लिए आगे बढ़ें →",
     skipBtn: "छोड़ें (Skip)",
 
     titleReview: "समीक्षा",
@@ -121,6 +121,11 @@ function showScreen(screenId) {
     const consentBtn = document.getElementById("consentContinueBtn");
     if (consentBox) consentBox.checked = false;
     if (consentBtn) consentBtn.disabled = true;
+  }
+
+  // When opening upload screen, generate and display mobile upload QR code
+  if (screenId === "screen-upload") {
+    showUploadQR();
   }
 }
 
@@ -170,10 +175,10 @@ function setLanguage(lang) {
 
   setTxt("titleUpload", t.titleUpload);
   setTxt("descUpload", t.descUpload);
-  setTxt("uploadPromptText", t.uploadPromptText);
-  setTxt("ocrHeader", t.ocrHeader);
-  setTxt("ocrConfirmPrompt", t.ocrConfirmPrompt);
-  setTxt("ocrConfirmBtn", t.ocrConfirmBtn);
+  setTxt("qrStep1", t.qrStep1);
+  setTxt("qrStep2", t.qrStep2);
+  setTxt("qrStep3", t.qrStep3);
+  setTxt("qrContinueBtn", t.qrContinueBtn);
   setTxt("skipUploadBtn", t.skipBtn);
 
   setTxt("titleReview", t.titleReview);
@@ -455,55 +460,52 @@ function appendMessage(sender, text) {
 }
 
 // ----------------------------------------------------------------------------
-// 4. Document Upload (POST /api/upload-document)
+// 4. Document Upload via Mobile QR (GET /api/server-info)
 // ----------------------------------------------------------------------------
-async function handleDocumentUpload(file) {
-  if (!file) return;
+async function showUploadQR() {
+  const qrCanvas = document.getElementById("qrCanvas");
+  const qrLoading = document.getElementById("qrLoadingText");
+  const qrHint = document.getElementById("qrDirectLink");
+  if (!qrCanvas) return;
 
-  if (!sessionId) {
-    alert(selectedLang === "hi" 
-      ? "सत्र नहीं मिला। कृपया शुरुआत से प्रारंभ करें।" 
-      : "Session not found. Please start from the beginning.");
-    showScreen("screen-identify");
-    return;
+  if (qrLoading) {
+    qrLoading.style.display = "block";
+    qrLoading.innerText = selectedLang === "hi"
+      ? "सुरक्षित क्यूआर कोड तैयार किया जा रहा है..."
+      : "Generating secure QR code...";
   }
-
-  const uploadPrompt = document.getElementById("uploadPromptText");
-  const originalPromptText = uploadPrompt ? uploadPrompt.innerText : "";
-  if (uploadPrompt) {
-    uploadPrompt.innerText = selectedLang === "hi"
-      ? "दस्तावेज़ स्कैन हो रहा है... कृपया प्रतीक्षा करें"
-      : "Scanning document... Please wait";
-  }
-
-  // Use FormData per instruction
-  const formData = new FormData();
-  formData.append("session_id", sessionId);
-  formData.append("file", file);
 
   try {
-    const response = await fetch(`${API_BASE}/upload-document`, {
-      method: "POST",
-      body: formData
-    });
-
+    const response = await fetch(`${API_BASE}/server-info?t=${Date.now()}`, { cache: "no-store" });
     await ensureApiSuccess(response);
-    const data = await response.json();
-    // data = { document_id, extracted_text, structured: { medicines: [...], date: "..." } }
+    const serverInfo = await response.json();
 
-    const ocrBox = document.getElementById("ocrResultBox");
-    const extractedTextElem = document.getElementById("extractedTextDisplay");
-    if (ocrBox && extractedTextElem) {
-      extractedTextElem.innerText = data.extracted_text || "No text extracted.";
-      ocrBox.style.display = "block";
+    const localIp = serverInfo.local_ip || window.location.hostname || "127.0.0.1";
+    const port = serverInfo.port || 8000;
+    const uploadURL = `http://${localIp}:${port}/mobile-upload/${sessionId}`;
+
+    if (typeof QRCode !== "undefined" && QRCode.toCanvas) {
+      await QRCode.toCanvas(qrCanvas, uploadURL, {
+        width: 220,
+        margin: 2,
+        color: {
+          dark: "#0f172a",
+          light: "#ffffff"
+        }
+      });
+      qrCanvas.style.display = "block";
+      if (qrLoading) qrLoading.style.display = "none";
+    }
+
+    if (qrHint) {
+      qrHint.innerText = uploadURL;
     }
   } catch (err) {
-    alert("Error uploading document: " + err.message);
-  } finally {
-    if (uploadPrompt) {
-      uploadPrompt.innerText = originalPromptText || (selectedLang === "hi"
-        ? "फोटो चुनने या पर्चा स्कैन करने के लिए टैप करें"
-        : "Tap to select photo or scan prescription");
+    console.warn("Could not generate QR code:", err);
+    if (qrLoading) {
+      qrLoading.innerText = selectedLang === "hi"
+        ? "क्यूआर कोड लोड करने में असमर्थ। आप 'छोड़ें' पर टैप करके आगे बढ़ सकते हैं।"
+        : "Unable to load QR code. You can tap 'Skip' to proceed.";
     }
   }
 }
@@ -573,9 +575,13 @@ function resetVisit() {
   document.getElementById("consentContinueBtn").disabled = true;
   document.getElementById("chatMessages").innerHTML = "";
   removeTypingIndicator();
-  document.getElementById("ocrResultBox").style.display = "none";
-  const docInput = document.getElementById("docFileInput");
-  if (docInput) docInput.value = "";
+  const qrCanvas = document.getElementById("qrCanvas");
+  if (qrCanvas) {
+    const ctx = qrCanvas.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+  }
+  const qrHint = document.getElementById("qrDirectLink");
+  if (qrHint) qrHint.innerText = "";
   const sentenceElem = document.getElementById("summarySentence");
   if (sentenceElem) sentenceElem.innerText = "Loading summary...";
   const detailsElem = document.getElementById("summaryDetails");
@@ -667,31 +673,19 @@ window.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  // Screen 4: Document Upload
-  const uploadZone = document.getElementById("uploadZone");
-  const docFileInput = document.getElementById("docFileInput");
+  // Screen 4: QR Upload Action Buttons
+  const qrContinueBtn = document.getElementById("qrContinueBtn");
   const skipUploadBtn = document.getElementById("skipUploadBtn");
-  const ocrConfirmBtn = document.getElementById("ocrConfirmBtn");
 
-  if (uploadZone && docFileInput) {
-    uploadZone.onclick = () => docFileInput.click();
-    docFileInput.onchange = (e) => {
-      if (e.target.files && e.target.files[0]) {
-        handleDocumentUpload(e.target.files[0]);
-      }
-    };
-  }
-
-  if (skipUploadBtn) {
-    skipUploadBtn.onclick = () => {
-      // Tap Skip: make no backend call, just move on
+  if (qrContinueBtn) {
+    qrContinueBtn.onclick = () => {
       showScreen("screen-review");
       loadSummary();
     };
   }
 
-  if (ocrConfirmBtn) {
-    ocrConfirmBtn.onclick = () => {
+  if (skipUploadBtn) {
+    skipUploadBtn.onclick = () => {
       showScreen("screen-review");
       loadSummary();
     };

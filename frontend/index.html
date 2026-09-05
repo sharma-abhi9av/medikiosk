@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MediKiosk</title>
-  <link rel="stylesheet" href="css/kiosk.css?v=4" />
+  <link rel="stylesheet" href="css/kiosk.css?v=5" />
 </head>
 <body>
 
@@ -121,40 +121,43 @@
       </section>
 
       <!-- ================================================================
-           SCREEN 4: DOCUMENT UPLOAD
-           Upload / camera button and Skip option
+           SCREEN 4: DOCUMENT UPLOAD VIA MOBILE QR
+           Scan QR code with smartphone to upload prescription
            ================================================================ -->
       <section id="screen-upload" class="kiosk-screen">
-        <h2 id="titleUpload" class="screen-title">Document Upload</h2>
-        <p id="descUpload" class="screen-desc">Upload a photo of your previous prescription or medical report (optional).</p>
+        <h2 id="titleUpload" class="screen-title">Upload Prescription via Phone</h2>
+        <p id="descUpload" class="screen-desc">Scan the QR code below with your smartphone camera to upload a prescription from your phone (optional).</p>
 
-        <!-- Hidden file input with camera support -->
-        <input
-          type="file"
-          id="docFileInput"
-          accept="image/*,application/pdf"
-          capture="environment"
-          style="display: none;"
-        />
-
-        <div class="upload-zone" id="uploadZone">
-          <div class="upload-icon">📄</div>
-          <div id="uploadPromptText" class="upload-text">Tap to select photo or scan prescription</div>
+        <div class="qr-card">
+          <div class="qr-canvas-container">
+            <canvas id="qrCanvas"></canvas>
+            <div id="qrLoadingText" class="qr-loading">Generating secure QR code...</div>
+          </div>
+          <div class="qr-instructions">
+            <div class="qr-step">
+              <span class="step-badge">1</span>
+              <span id="qrStep1">Open your smartphone camera or scanner</span>
+            </div>
+            <div class="qr-step">
+              <span class="step-badge">2</span>
+              <span id="qrStep2">Point your camera at this QR code</span>
+            </div>
+            <div class="qr-step">
+              <span class="step-badge">3</span>
+              <span id="qrStep3">Select & upload your prescription photo</span>
+            </div>
+          </div>
+          <p id="qrDirectLink" class="qr-url-hint"></p>
         </div>
 
-        <!-- Extracted text preview (visible only after upload) -->
-        <div id="ocrResultBox" class="ocr-result-box" style="display: none;">
-          <h3 id="ocrHeader">Extracted Text:</h3>
-          <pre id="extractedTextDisplay" class="extracted-text-display"></pre>
-          <p id="ocrConfirmPrompt">Is this correct?</p>
-          <button type="button" id="ocrConfirmBtn" class="btn-primary">
-            Confirm & Continue
+        <div class="screen-actions">
+          <button type="button" id="qrContinueBtn" class="btn-primary">
+            Continue to Review →
+          </button>
+          <button type="button" id="skipUploadBtn" class="btn-secondary">
+            Skip
           </button>
         </div>
-
-        <button type="button" id="skipUploadBtn" class="btn-secondary">
-          Skip
-        </button>
       </section>
 
       <!-- ================================================================
@@ -194,6 +197,7 @@
     </main>
   </div>
 
-  <script src="js/app.js?v=4"></script>
+  <script src="js/qrcode.min.js"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>
