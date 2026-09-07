@@ -5,9 +5,6 @@
 const API_BASE = "http://localhost:8000/api";
 let currentSessionId = null;
 
-// ----------------------------------------------------------------------------
-// Fetch All Patient Sessions (GET /api/sessions)
-// ----------------------------------------------------------------------------
 async function fetchSessions() {
   const listElem = document.getElementById("sessionsList");
 
@@ -34,6 +31,9 @@ async function fetchSessions() {
             <span>${escapeHtml(s.started_at ? new Date(s.started_at).toLocaleTimeString() : "")}</span>
           </div>
           <div class="session-id">ID: ${escapeHtml(s.session_id)}</div>
+          <button type="button" class="btn-history" onclick="event.stopPropagation(); showPatientHistory('${s.abha_id}', '${escapeHtml(s.patient_name || "Unknown Patient")}')">
+            View Full History
+          </button>
         </div>
       `;
     }).join("");
@@ -124,6 +124,75 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+// ----------------------------------------------------------------------------
+// Patient History Modal (GET /api/patient-history/{abhaId})
+// Shows EVERY past visit for this patient as its own separate, dated section —
+// deliberately not merged into one combined summary, so unrelated complaints
+// from different visits never get blended together.
+// ----------------------------------------------------------------------------
+async function showPatientHistory(abhaId, patientName) {
+  const overlay = document.getElementById("historyModalOverlay");
+  const title = document.getElementById("historyModalTitle");
+  const body = document.getElementById("historyModalBody");
+
+  title.textContent = `Full History — ${patientName}`;
+  body.innerHTML = `<div class="empty-state">Loading history...</div>`;
+  overlay.style.display = "flex";
+
+  try {
+    const response = await fetch(`${API_BASE}/patient-history/${abhaId}`);
+    if (!response.ok) {
+      throw new Error(`Server returned HTTP ${response.status}`);
+    }
+
+    const visits = await response.json();
+
+    if (!Array.isArray(visits) || visits.length === 0) {
+      body.innerHTML = `<div class="empty-state">No visit history found for this patient.</div>`;
+      return;
+    }
+
+    body.innerHTML = visits.map((v) => {
+      const dateLabel = v.started_at ? new Date(v.started_at).toLocaleString() : "Unknown date";
+      const hasSummary = v.chief_complaint || v.hpi || v.past_history || v.drug_allergy_history;
+
+      if (!hasSummary) {
+        return `
+          <div class="history-visit-card">
+            <div class="history-visit-date">${escapeHtml(dateLabel)}</div>
+            <p class="history-no-summary">Summary not available for this visit.</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="history-visit-card">
+          <div class="history-visit-date">${escapeHtml(dateLabel)}</div>
+          <div class="history-field">
+            <strong>Chief Complaint:</strong> ${escapeHtml(v.chief_complaint || "Not recorded")}
+          </div>
+          <div class="history-field">
+            <strong>HPI:</strong> ${escapeHtml(v.hpi || "Not recorded")}
+          </div>
+          <div class="history-field">
+            <strong>Past History:</strong> ${escapeHtml(v.past_history || "None reported")}
+          </div>
+          <div class="history-field">
+            <strong>Drug & Allergy History:</strong> ${escapeHtml(v.drug_allergy_history || "None reported")}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+  } catch (err) {
+    body.innerHTML = `<div class="empty-state" style="color: #b91c1c;">Error loading history: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function closeHistoryModal() {
+  document.getElementById("historyModalOverlay").style.display = "none";
 }
 
 window.addEventListener("DOMContentLoaded", () => {

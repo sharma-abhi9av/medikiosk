@@ -237,3 +237,108 @@ body {
   white-space: pre-wrap;
   margin-top: 6px;
 }
+
+/* "View Full History" button on each session card */
+.btn-history {
+  margin-top: 8px;
+  width: 100%;
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  color: var(--doc-primary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-history:hover {
+  background: #e2e8f0;
+}
+
+/* Patient History Modal */
+.history-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.history-modal {
+  background: var(--bg-card);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.history-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.history-modal-header h2 {
+  font-size: 1.2rem;
+  color: var(--doc-primary);
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.btn-close-modal:hover {
+  color: var(--text-main);
+}
+
+.history-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Each past visit rendered as its own separate card — never merged together */
+.history-visit-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.history-visit-date {
+  font-weight: 700;
+  color: var(--doc-primary);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-field {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.history-field strong {
+  color: var(--doc-primary);
+}
+
+.history-no-summary {
+  color: var(--text-muted);
+  font-style: italic;
+}

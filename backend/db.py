@@ -144,11 +144,50 @@ def get_session_documents(session_id):
     ]
 
 
+def get_document_count(session_id):
+    """Called by GET /api/documents-count/{id} — a cheap, lightweight count used
+    for the kiosk to poll 'has a document arrived yet' while a patient is
+    uploading from their phone via QR code. Deliberately does NOT return the
+    full document text/OCR data, just a number — so polling every few seconds
+    doesn't waste effort re-fetching data the kiosk doesn't need yet."""
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT COUNT(*) AS count FROM documents WHERE session_id = ?",
+        (session_id,),
+    ).fetchone()
+    conn.close()
+    return row["count"]
+
+
 def get_all_sessions():
-    """Called by GET /api/sessions — returns every patient visit, newest first (Doctor Dashboard list)."""
+    """Called by GET /api/sessions — returns every patient visit, newest first (Doctor Dashboard list).
+    Includes abha_id so the frontend can wire a "View Full History" button per row without
+    a second lookup — the ID is there even if it's not shown directly in the list UI."""
     conn = get_db_connection()
     rows = conn.execute(
-        "SELECT id AS session_id, patient_name, created_at AS started_at, status FROM sessions ORDER BY created_at DESC"
+        "SELECT id AS session_id, patient_name, abha_id, created_at AS started_at, status "
+        "FROM sessions ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_patient_visit_history(abha_id):
+    """Called by GET /api/patient-history/{abha_id} — returns EVERY past visit by this
+    ABHA ID, most recent first, each with its saved summary if one exists. This is what
+    powers the Doctor Dashboard's "Patient History" button — seeing a returning patient's
+    full history across visits, not just the one they're here for today."""
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT s.id AS session_id, s.patient_name, s.created_at AS started_at, s.status,
+               sm.chief_complaint, sm.hpi, sm.past_history, sm.drug_allergy_history
+        FROM sessions s
+        LEFT JOIN summaries sm ON sm.session_id = s.id
+        WHERE s.abha_id = ?
+        ORDER BY s.created_at DESC
+        """,
+        (abha_id,),
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]

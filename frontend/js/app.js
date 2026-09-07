@@ -9,9 +9,6 @@ let selectedLang = "en";
 // Backend API URL (Mikey's server)
 const API_BASE = "http://localhost:8000/api";
 
-// A fetch resolves even for HTTP 4xx/5xx responses. Check the status before
-// advancing a patient to the next screen, otherwise a failed request leaves
-// the kiosk with an invalid or missing session ID.
 async function ensureApiSuccess(response) {
   if (response.ok) return;
 
@@ -500,6 +497,8 @@ async function showUploadQR() {
     if (qrHint) {
       qrHint.innerText = uploadURL;
     }
+
+    startDocumentPolling();
   } catch (err) {
     console.warn("Could not generate QR code:", err);
     if (qrLoading) {
@@ -507,6 +506,53 @@ async function showUploadQR() {
         ? "क्यूआर कोड लोड करने में असमर्थ। आप 'छोड़ें' पर टैप करके आगे बढ़ सकते हैं।"
         : "Unable to load QR code. You can tap 'Skip' to proceed.";
     }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Poll for a document arriving (uploaded from the patient's phone via QR)
+// while this screen is open, so the patient sees confirmation instead of
+// wondering whether it worked. Does NOT block Continue/Skip either way —
+// this is purely a visible confirmation, never a requirement to proceed.
+// ----------------------------------------------------------------------------
+let documentPollInterval = null;
+
+function startDocumentPolling() {
+  stopDocumentPolling(); // clear any previous interval first
+
+  documentPollInterval = setInterval(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/documents-count/${sessionId}`);
+      if (!response.ok) return;
+      const data = await response.json();
+
+      if (data.count > 0) {
+        showDocumentReceivedConfirmation();
+        stopDocumentPolling();
+      }
+    } catch (err) {
+      // Silent — a failed poll just means we try again in 3 seconds, no need
+      // to alarm the patient over a single missed network check.
+    }
+  }, 3000);
+}
+
+function stopDocumentPolling() {
+  if (documentPollInterval) {
+    clearInterval(documentPollInterval);
+    documentPollInterval = null;
+  }
+}
+
+function showDocumentReceivedConfirmation() {
+  const qrHint = document.getElementById("qrDirectLink");
+  const confirmation = document.getElementById("documentReceivedConfirmation");
+  if (qrHint) qrHint.style.display = "none";
+  if (confirmation) {
+    confirmation.style.display = "block";
+    confirmation.innerText = selectedLang === "hi"
+      ? "✓ दस्तावेज़ प्राप्त हुआ!"
+      : "✓ Document received!";
   }
 }
 
@@ -679,6 +725,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   if (qrContinueBtn) {
     qrContinueBtn.onclick = () => {
+      stopDocumentPolling();
       showScreen("screen-review");
       loadSummary();
     };
@@ -686,6 +733,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   if (skipUploadBtn) {
     skipUploadBtn.onclick = () => {
+      stopDocumentPolling();
       showScreen("screen-review");
       loadSummary();
     };

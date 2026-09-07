@@ -19,6 +19,8 @@ from db import (
     get_session_documents,
     get_all_sessions,
     get_summary,
+    get_patient_visit_history,
+    get_document_count,
 )
 
 app = FastAPI()
@@ -147,15 +149,6 @@ def converse(data: dict):
 
     return result
 
-
-# ---------------------------------------------------------------------------
-# EXTRA: GET /mobile-upload/{session_id} — a tiny page a patient's own phone
-# opens after scanning a QR code shown on the kiosk. It has one upload button
-# that calls the SAME POST /api/upload-document endpoint below, with the
-# session_id already baked into the page — no separate upload logic needed.
-# NOTE: only reachable if the phone is on the same WiFi network as this
-# server (see the note Mikey has for the team on this).
-# ---------------------------------------------------------------------------
 @app.get("/mobile-upload/{session_id}", response_class=HTMLResponse)
 def mobile_upload_page(session_id: str):
     return f"""
@@ -293,3 +286,18 @@ def summary(session_id: str):
 @app.get("/api/sessions")
 def sessions():
     return get_all_sessions()
+
+@app.get("/api/patient-history/{abha_id}")
+def patient_history(abha_id: str):
+    return get_patient_visit_history(abha_id)
+
+
+# ---------------------------------------------------------------------------
+# EXTRA: GET /api/documents-count/{session_id} — a cheap poll target. The
+# kiosk calls this every few seconds while showing the upload QR code, so it
+# can tell the patient "document received!" once their phone upload lands —
+# without waiting for them to guess whether it worked.
+# ---------------------------------------------------------------------------
+@app.get("/api/documents-count/{session_id}")
+def documents_count(session_id: str):
+    return {"count": get_document_count(session_id)}

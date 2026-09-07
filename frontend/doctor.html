@@ -34,13 +34,24 @@
       </div>
     </aside>
 
-    <!-- Right Column: Clinical Note (GET /api/summary/{sessionId}) -->
+
     <main class="summary-content">
       <div id="clinicalNoteContainer">
         <div class="empty-state">Select a patient session from the left to view the clinical note.</div>
       </div>
     </main>
 
+  </div>
+
+  <!-- Patient History Modal (populated by showPatientHistory() in doctor.js) -->
+  <div id="historyModalOverlay" class="history-modal-overlay" style="display: none;" onclick="if(event.target === this) closeHistoryModal()">
+    <div class="history-modal">
+      <div class="history-modal-header">
+        <h2 id="historyModalTitle">Patient History</h2>
+        <button type="button" class="btn-close-modal" onclick="closeHistoryModal()">&times;</button>
+      </div>
+      <div id="historyModalBody" class="history-modal-body"></div>
+    </div>
   </div>
 
   <script src="js/doctor.js"></script>

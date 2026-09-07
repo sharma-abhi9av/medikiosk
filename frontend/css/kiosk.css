@@ -460,6 +460,18 @@ body {
   margin-top: 10px;
 }
 
+.qr-received-confirmation {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 10px;
+  text-align: center;
+}
+
 .screen-actions {
   display: flex;
   gap: 16px;

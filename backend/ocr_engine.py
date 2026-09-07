@@ -4,7 +4,6 @@ import shutil
 from PIL import Image, ImageOps
 import pytesseract
 
-# Configure tesseract binary if available in standard macOS / Linux locations
 if not shutil.which("tesseract"):
     for path in [
         "/opt/homebrew/bin/tesseract",
@@ -19,11 +18,11 @@ if not shutil.which("tesseract"):
 
 def clean_medicine_line(line: str) -> str:
     """Clean a prescription medicine line to extract the medicine name and dosage."""
-    # Remove leading bullets, numbering, or list markers
+    
     s = re.sub(r"^[\s\d.\-*•)]+", "", line.strip())
-    # Remove dosage form prefixes like Tab., Cap., etc.
+    
     s = re.sub(r"^(?:tab(?:let)?\.?|cap(?:sule)?\.?)\s*", "", s, flags=re.IGNORECASE)
-    # Remove trailing frequency and duration instructions (e.g., BD x5 days, OD)
+    
     s = re.sub(
         r"\s+(?:bd|od|tds|qid|tid|hs|sos|x\s*\d+\s*days?|\d+\s*days?|once\s+daily|twice\s+daily).*$",
         "",
@@ -43,16 +42,17 @@ def extract_prescription_data(image_path: str) -> dict:
     try:
         if os.path.exists(image_path):
             image = Image.open(image_path)
-            # Correct phone/camera EXIF rotation if present
             image = ImageOps.exif_transpose(image)
             raw_text = pytesseract.image_to_string(image)
-    except Exception:
+        else:
+            print(f"[ocr_engine] image path does not exist: {image_path}")
+    except Exception as e:
+        print(f"[ocr_engine] OCR failed on '{image_path}': {type(e).__name__}: {e}")
         raw_text = ""
 
     medicines = []
     date = None
 
-    # Dosage pattern: numbers followed by mg, or words like tablet, syrup, BD, OD
     dosage_pattern = re.compile(
         r"(\d+\s*mg|\b(?:tablet|tab|syrup|syr|bd|od)\b)", re.IGNORECASE
     )
